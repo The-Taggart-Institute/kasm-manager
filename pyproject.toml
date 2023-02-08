@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "kasm-manager"
+version = "0.1.0"
+description = ""
+authors = ["Michael Taggart <mtaggart@taggart-tech.com>"]
+readme = "README.md"
+packages = [{include = "kasm_manager"}]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+docker = "^6.0.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
