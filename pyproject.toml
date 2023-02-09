@@ -9,6 +9,8 @@ packages = [{include = "kasm_manager"}]
 [tool.poetry.dependencies]
 python = "^3.10"
 docker = "^6.0.1"
+rich = "^13.3.1"
+requests = "^2.28.2"
 
 
 [build-system]
