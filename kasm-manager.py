@@ -121,5 +121,12 @@ def destroy(port_id: int):
     rprint(f"[bold red][!] Removing secret {target_name} [/bold red]")
     target_secret.remove()
 
+@cli.command()
+def list():
+    client = docker.from_env()
+    services = [s for s in client.services.list() if "kasm_" in s.name]
+    for s in services:
+        rprint(f"[bold cyan]{s.name}[/bold cyan]")
+
 if __name__ == '__main__':
     cli()
