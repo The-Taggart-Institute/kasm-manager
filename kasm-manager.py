@@ -49,8 +49,6 @@ def get_password() -> str:
     except:
         raise ConnectionError("Could not retrieve password!")
 
-# TODO: Get any running instances at launch and remove them from port pool
-
 @cli.command(help="Creates a new Kasm Instance")
 def create():
     """
@@ -64,18 +62,22 @@ def create():
 
     rprint("[bold blue][+] Creating Kasm Instance![/bold blue]")
     new_port = choice(available_ports)
+    new_name = f"kasm_{new_port}"
     new_pass = get_password()
-    new_net = client.networks.create(f"kasm_{new_port}", driver="overlay")
+    new_secret = client.secrets.create(name=new_name, data=new_pass.encode())
+    new_secret_ref = docker.types.SecretReference(new_secret.id, new_secret.name)
+    new_net = client.networks.create(f"{new_name}", driver="overlay")
     new_spec = docker.types.EndpointSpec(ports={new_port:6901})
     new_service = client.services.create(
         IMAGE_NAME, \
-        name=f"kasm_{new_port}", \
+        name=new_name, \
         env=[f"VNC_PW={new_pass}"], \
         endpoint_spec = new_spec, \
-        networks = [new_net.id]
+        networks = [new_net.id], \
+        secrets = [new_secret_ref]
     )
-    rprint(f"[bold green][+] Instance kasm_{new_port} created[/bold green]")
-    rprint(f"[bold green][+] kasm_{new_port} Password: {new_pass}[/bold green]")
+    rprint(f"[bold green][+] Instance {new_name} created[/bold green]")
+    rprint(f"[bold green][+] {new_name} Password: {new_pass}[/bold green]")
     
 @cli.command(help="Destroy Kasm Instance at PORT_ID")
 @click.argument("port_id")
@@ -87,16 +89,37 @@ def destroy(port_id: int):
 
     target_name = f"kasm_{port_id}"
 
-    services = client.services.list()
-    networks = client.networks.list()
+    rprint(f"[bold blue][+] Attempting to destroying {target_name}[/bold blue]")
 
-    target_service = list(filter(lambda s: s.name == target_name, services))[0]
-    target_network = list(filter(lambda s: s.name == target_name, networks))[0]
+    # Get all services
+    services = {s.name: s for s in client.services.list()}
+    networks = {n.name: n for n in client.networks.list()}
+    secrets = {s.name:s for s in client.secrets.list()}
+
+    # Get target service
+    try:
+        target_service = services[target_name]
+    except:
+        rprint(f"[bold red][!] Could not locate service {target_name} [/bold red]")
+
+    # Get target secret
+    try:
+        target_secret = secrets[target_name]
+    except IndexError:
+        rprint(f"[bold red][!] Could not locate secret {target_name} [/bold red]")
+
+    # Get target network
+    try:
+        target_network = networks[target_name]
+    except IndexError:
+        rprint(f"[bold red][!] Could not locate network {target_name} [/bold red]")
 
     rprint(f"[bold red][!] Removing service {target_name} [/bold red]")
     target_service.remove()
     rprint(f"[bold red][!] Removing network {target_name} [/bold red]")
     target_network.remove()
+    rprint(f"[bold red][!] Removing secret {target_name} [/bold red]")
+    target_secret.remove()
 
 if __name__ == '__main__':
     cli()
