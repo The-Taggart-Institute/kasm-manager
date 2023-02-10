@@ -3,7 +3,6 @@ import docker
 import click
 import requests
 from rich import print as rprint
-import argparse
 
 # Constants
 IMAGE_NAME = "kasmweb/terminal:1.12.0-rolling"
@@ -78,7 +77,23 @@ def create():
     )
     rprint(f"[bold green][+] Instance {new_name} created[/bold green]")
     rprint(f"[bold green][+] {new_name} Password: {new_pass}[/bold green]")
+
+@cli.command(help="Inspect a running Kasm Korkspace at PORT_ID")
+@click.argument("port_id")
+def inspect(port_id: int):
+    """
+    Get details about a running image
+    """
+    target_name = f"kasm_{port_id}"
+    services = {s.name: s for s in client.services.list()}
+    client = docker.from_env()
+    # Get target service
+    try:
+        target_service = services[target_name]
+    except:
+        rprint(f"[bold red][!] Could not locate service {target_name} [/bold red]")
     
+
 @cli.command(help="Destroy Kasm Instance at PORT_ID")
 @click.argument("port_id")
 def destroy(port_id: int):
