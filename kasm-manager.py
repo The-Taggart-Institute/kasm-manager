@@ -5,7 +5,9 @@ import requests
 from rich import print as rprint
 
 # Constants
-IMAGE_NAME = "kasmweb/terminal:1.12.0-rolling"
+IMAGE_NAME = "tti-kasm-terminal:latest"
+CERT_SECRET_NAME = "kasm_cert"
+KEY_SECRET_NAME = "kasm_key"
 PORT_START = 6901
 PORT_END = 7000
 PASSWORD_API_URL = "https://passphrase.taggart-tech.com/api/pwlist?n=1&sep=_&digitMin=10&digitMax=99"
@@ -59,6 +61,15 @@ def create():
     used_ports = [int(i.name.replace("kasm_", "")) for i in client.services.list() if "kasm_" in i.name]
     available_ports = [p for p in PORTS if p not in used_ports]
 
+    # Gets Cert/Key secrets
+    try:
+        cert_secret = client.secrets.get(CERT_SECRET_NAME)
+        cert_secret_ref = docker.types.SecretReference(cert_secret.id, cert_secret.name)
+        key_secret = client.secrets.get(KEY_SECRET_NAME)
+        key_secret_ref = docker.types.SecretReference(key_secret.id, key_secret.name)
+    except:
+        rprint(f"[bold red][!] Could not load cert secrets[/bold red]")
+
     rprint("[bold blue][+] Creating Kasm Instance![/bold blue]")
     new_port = choice(available_ports)
     new_name = f"kasm_{new_port}"
@@ -73,7 +84,7 @@ def create():
         env=[f"VNC_PW={new_pass}"], \
         endpoint_spec = new_spec, \
         networks = [new_net.id], \
-        secrets = [new_secret_ref]
+        secrets = [new_secret_ref, key_secret_ref, cert_secret_ref]
     )
     rprint(f"[bold green][+] Instance {new_name} created[/bold green]")
     rprint(f"[bold green][+] {new_name} Password: {new_pass}[/bold green]")
@@ -116,18 +127,21 @@ def destroy(port_id: int):
         target_service = services[target_name]
     except:
         rprint(f"[bold red][!] Could not locate service {target_name} [/bold red]")
+        return
 
     # Get target secret
     try:
         target_secret = secrets[target_name]
     except IndexError:
         rprint(f"[bold red][!] Could not locate secret {target_name} [/bold red]")
+        return
 
     # Get target network
     try:
         target_network = networks[target_name]
     except IndexError:
         rprint(f"[bold red][!] Could not locate network {target_name} [/bold red]")
+        return
 
     rprint(f"[bold red][!] Removing service {target_name} [/bold red]")
     target_service.remove()
