@@ -1,0 +1,6 @@
+network:
+  ssl:
+    pem_certificate: /run/secrets/kasm_cert
+    pem_key: /run/secrets/kasm_key
+  udp:
+    public_ip: 127.0.0.1
