@@ -5,7 +5,7 @@ import requests
 from rich import print as rprint
 
 # Constants
-IMAGE_NAME = "tti-kasm-terminal:latest"
+IMAGE_NAME = "taggarttech/tti-kasm-terminal:latest"
 CERT_SECRET_NAME = "kasm_cert"
 KEY_SECRET_NAME = "kasm_key"
 PORT_START = 6901
@@ -14,7 +14,7 @@ PASSWORD_API_URL = "https://passphrase.taggart-tech.com/api/pwlist?n=1&sep=_&dig
 PORTS = list(range(PORT_START, PORT_END))
 
 """
-`kasm-manager create`
+`kasm-manager create`*
     1. Choose a random port
     2. Get a random password*
         Store password in docker secrets
@@ -23,7 +23,7 @@ PORTS = list(range(PORT_START, PORT_END))
     5. Create a new service*
     6. Returns service name/id*
 
-`kasm-manager destroy <PORT>`
+`kasm-manager destroy <PORT>`*
     1. Retrieve Docker Secret
     2. Delete Secret
     3. Retrieve Service
@@ -31,7 +31,7 @@ PORTS = list(range(PORT_START, PORT_END))
     5. Retrieve Network
     6. Delete Network
 
-`kasm-manager list`
+`kasm-manager list`*
     1. Retrieve `kasm_` Services
     2. Print 'em
 
@@ -69,6 +69,7 @@ def create():
         key_secret_ref = docker.types.SecretReference(key_secret.id, key_secret.name)
     except:
         rprint(f"[bold red][!] Could not load cert secrets[/bold red]")
+        return
 
     rprint("[bold blue][+] Creating Kasm Instance![/bold blue]")
     new_port = choice(available_ports)
@@ -78,13 +79,15 @@ def create():
     new_secret_ref = docker.types.SecretReference(new_secret.id, new_secret.name)
     new_net = client.networks.create(f"{new_name}", driver="overlay")
     new_spec = docker.types.EndpointSpec(ports={new_port:6901})
+    new_resources = docker.types.Resources(cpu_limit=2, mem_limit=2147483648)
     new_service = client.services.create(
         IMAGE_NAME, \
         name=new_name, \
         env=[f"VNC_PW={new_pass}"], \
         endpoint_spec = new_spec, \
         networks = [new_net.id], \
-        secrets = [new_secret_ref, key_secret_ref, cert_secret_ref]
+        secrets = [new_secret_ref, key_secret_ref, cert_secret_ref], \
+        resources = new_resources
     )
     rprint(f"[bold green][+] Instance {new_name} created[/bold green]")
     rprint(f"[bold green][+] {new_name} Password: {new_pass}[/bold green]")
