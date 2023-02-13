@@ -1,4 +1,4 @@
-linux_workers:
+kasm-workers:
   hosts:
     10.0.2.6:
     10.0.2.5:

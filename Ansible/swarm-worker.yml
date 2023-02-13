@@ -7,6 +7,7 @@
     - name: swarm_token
       prompt: "Swarm Token"
       private: false
+  hosts: kasm-workers
   become: true
   become_user: root
   tasks:
