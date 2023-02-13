@@ -14,6 +14,7 @@ resource "azurerm_linux_virtual_machine" "kasm-worker" {
     name                 = "kasm-worker-${count.index}-osdisk"
     caching              = "ReadWrite"
     storage_account_type = "Standard_LRS"
+    disk_size_gb         = 50
   }
 
   source_image_reference {
@@ -45,6 +46,5 @@ resource "azurerm_network_interface" "kasm-worker" {
 }
 
 output "worker_private_ips" {
-  value = [for i in azurerm_network_interface.worker : i.private_ip_address]
-  private = false
+  value = [for i in azurerm_network_interface.kasm-worker : i.private_ip_address]
 }

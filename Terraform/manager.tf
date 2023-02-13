@@ -14,6 +14,7 @@ resource "azurerm_linux_virtual_machine" "kasm-manager" {
     name                 = "kasm-manager-osdisk"
     caching              = "ReadWrite"
     storage_account_type = "Standard_LRS"
+    disk_size_gb         = 50
   }
 
 
@@ -32,15 +33,15 @@ resource "azurerm_linux_virtual_machine" "kasm-manager" {
 
   provisioner "remote-exec" {
     connection {
-      type        = "ssh"
-      user        = var.admin_username
-      password    = var.admin_password
-      host        = self.public_ip_address
+      type     = "ssh"
+      user     = var.admin_username
+      password = var.admin_password
+      host     = self.public_ip_address
     }
     inline = [
       "sudo apt update",
       "sudo apt install -y python3-pip",
-      "sudo pip3 install docker rich requests",
+      "sudo pip3 install docker rich requests ansible",
       "sudo gpasswd -a ${var.admin_username} docker",
       "sudo docker swarm init --advertise-addr ${azurerm_linux_virtual_machine.kasm-manager.private_ip_address}",
       "git clone https://github.com/The-Taggart-Institute/kasm-manager",
