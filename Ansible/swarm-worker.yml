@@ -18,9 +18,12 @@
     - name: Install Docker Module
       ansible.builtin.pip:
         name: docker
+    - name: Leave Existing Swarm
+      community.docker.docker_swarm:
+      state: absent
     - name: Join Swarm
       ansible.builtin.shell:
-        cmd: "docker swarm join --token {{swarm_token}} {{manager_ip}}:2377"
+        cmd: "docker swarm join --token {{ swarm_token }} {{ manager_ip }}:2377"
     - name: Pull Terminal Image
       community.docker.docker_image:
         source: pull
