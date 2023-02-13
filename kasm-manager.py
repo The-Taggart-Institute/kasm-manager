@@ -79,8 +79,7 @@ def create(image):
     except:
         rprint(f"[bold yellow][?] Image {image_name} not present, trying to pull...[/bold yellow]")
         client.images.pull(image_name)
-
-        
+        rprint(f"[bold blue][+] Pulled image {image_name}[/bold blue]")
 
     # Guarantees we only use available ports
     used_ports = [int(i.name.replace("kasm_", "")) for i in client.services.list() if "kasm_" in i.name]
