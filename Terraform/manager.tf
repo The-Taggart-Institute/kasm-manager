@@ -39,9 +39,6 @@ resource "azurerm_linux_virtual_machine" "kasm-manager" {
       host     = self.public_ip_address
     }
     inline = [
-      "sudo apt update",
-      "sudo apt install -y python3-pip",
-      "sudo pip3 install docker rich requests ansible",
       "sudo gpasswd -a ${var.admin_username} docker",
       "sudo docker swarm init --advertise-addr ${azurerm_linux_virtual_machine.kasm-manager.private_ip_address}",
       "git clone https://github.com/The-Taggart-Institute/kasm-manager",
