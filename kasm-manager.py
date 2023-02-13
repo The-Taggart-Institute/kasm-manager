@@ -4,8 +4,11 @@ import docker
 import click
 import requests
 from rich import print as rprint
+import json
+import os
 
 # Constants
+STATE_DIR = ".kasmstate"
 IMAGES = {
     "terminal": "taggarttech/tti-kasm-terminal:latest",
     "kali": "taggarttech/tti-kasm-kali:latest"
@@ -43,6 +46,24 @@ PORTS = list(range(PORT_START, PORT_END))
     1.Retrieve `kasm_<PORT>` Service
     2. Print it out
 """
+
+
+def load(port_id: int) -> dict:
+    try:
+        with open(f"{STATE_DIR}/kasm_{port_id}") as f:
+            return json.load(f)
+    except:
+        rprint(f"[bold red][!] Could not load data for {port_id}[/bold red]")
+
+def save(data: dict):
+    if not os.path.isdir(STATE_DIR):
+        os.mkdir(STATE_DIR)
+    port_id = data["port_id"]
+    with open(f"{STATE_DIR}/kasm_{port_id}.json", "w") as f:
+        json.dump(data, f, indent=4)
+    rprint(f"[bold green][+] Saved {port_id}[/bold green]")    
+
+
 @click.group()
 def cli():
     pass
@@ -60,14 +81,12 @@ def create(image):
     """
     Launches a new Kasm Instance. Returns the KasmInstance
     """
-    
-
     # Retrieve image name
     try:
         image_name = IMAGES[image]
         images = docker
     except:
-        rprint(f"[bold red][!]No such image type: {image}[/bold red]")
+        rprint(f"[bold red][!] No such image type: {image}[/bold red]")
         return
 
     
@@ -117,6 +136,14 @@ def create(image):
     rprint(f"[bold green][+] Instance {new_name} created[/bold green]")
     rprint(f"[bold green][+] {new_name} Password: {new_pass}[/bold green]")
 
+    save({
+        "name": new_name,
+        "port_id": new_port,
+        "password": new_pass,
+        "image": image_name
+    })
+
+
 @cli.command(help="Inspect a running Kasm Korkspace at PORT_ID")
 @click.argument("port_id")
 def inspect(port_id: int):
@@ -124,11 +151,11 @@ def inspect(port_id: int):
     Get details about a running image
     """
     target_name = f"kasm_{port_id}"
-    services = {s.name: s for s in client.services.list()}
-    client = docker.from_env()
     # Get target service
     try:
-        target_service = services[target_name]
+        with open(f"{STATE_DIR}/kasm_{port_id}.json") as f:
+            data = json.dumps(json.load(f), indent=4)
+            rprint(f"[bold cyan]{data}[/bold cyan]")
     except:
         rprint(f"[bold red][!] Could not locate service {target_name} [/bold red]")
     
@@ -177,6 +204,11 @@ def destroy(port_id: int):
     target_network.remove()
     rprint(f"[bold red][!] Removing secret {target_name} [/bold red]")
     target_secret.remove()
+    rprint(f"[bold red][!] Removing state file for {target_name} [/bold red]")
+    try:
+        os.remove(f"{STATE_DIR}/{target_name}.json")
+    except:
+        rprint(f"[bold red][!] No state file for {target_name} [/bold red]")
 
 @cli.command()
 def list():
