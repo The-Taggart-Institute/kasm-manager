@@ -77,9 +77,9 @@ def create(image):
     try:
         client.images.get(image_name)
     except:
-        rprint(f"[bold yellow][?]Image {image} not present, trying to pull...[/bold yellow]")
+        rprint(f"[bold yellow][?] Image {image_name} not present, trying to pull...[/bold yellow]")
         client.images.pull(image_name)
-        
+
         
 
     # Guarantees we only use available ports
