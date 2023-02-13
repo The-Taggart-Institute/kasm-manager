@@ -3,10 +3,10 @@
   vars_prompt:
     - name: manager_ip
       prompt: "Manager IP"
-      sensitive: false
+      private: false
     - name: swarm_token
       prompt: "Swarm Token"
-      sensitive: false
+      private: false
   become: true
   become_user: root
   tasks:
