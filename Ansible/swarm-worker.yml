@@ -23,9 +23,9 @@
         cmd: "docker swarm join --token {{swarm_token}} {{manager_ip}}:2377"
     - name: Pull Terminal Image
       community.docker.docker_image:
-        pull: true
+        source: pull
         name: taggarttech/tti-kasm-terminal
     - name: Pull Kali Image
       community.docker.docker_image:
-        pull: true
+        source: pull
         name: taggarttech/tti-kasm-kali
