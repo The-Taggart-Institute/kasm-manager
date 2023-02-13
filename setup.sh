@@ -2,7 +2,7 @@
 # Change this
 DOMAIN=lab.taggart-tech.com
 sudo apt update
-sudo apt install -y letsencrypt python3-pip 
+sudo apt install -y letsencrypt python3-pip sshpass
 sudo pip3 install docker rich requests ansible
 sudo certbot certonly
 docker image pull taggarttech/tti-kasm-terminal
