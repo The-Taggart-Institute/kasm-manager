@@ -5,7 +5,10 @@ import requests
 from rich import print as rprint
 
 # Constants
-IMAGE_NAME = "taggarttech/tti-kasm-terminal:latest"
+IMAGES = {
+    "terminal": "taggarttech/tti-kasm-terminal:latest",
+    "kali": "taggarttech/tti-kasm-kali:latest"
+}
 CERT_SECRET_NAME = "kasm_cert"
 KEY_SECRET_NAME = "kasm_key"
 PORT_START = 6901
@@ -51,11 +54,33 @@ def get_password() -> str:
         raise ConnectionError("Could not retrieve password!")
 
 @cli.command(help="Creates a new Kasm Instance")
-def create():
+@click.option("-i", "--image", default="terminal", show_default=True, help="Image type")
+def create(image):
     """
     Launches a new Kasm Instance. Returns the KasmInstance
     """
+    
+
+    # Retrieve image name
+    try:
+        image_name = IMAGES[image]
+        images = docker
+    except:
+        rprint(f"[bold red][!]No such image type: {image}[/bold red]")
+        return
+
+    
+    # Initialize Client
     client = docker.from_env()
+    
+    # Confirm Image exists
+    try:
+        client.images.get(image_name)
+    except:
+        rprint(f"[bold yellow][?]Image {image} not present, trying to pull...[/bold yellow]")
+        client.images.pull(image_name)
+        
+        
 
     # Guarantees we only use available ports
     used_ports = [int(i.name.replace("kasm_", "")) for i in client.services.list() if "kasm_" in i.name]
@@ -81,7 +106,7 @@ def create():
     new_spec = docker.types.EndpointSpec(ports={new_port:6901})
     new_resources = docker.types.Resources(mem_limit=2147483648)
     new_service = client.services.create(
-        IMAGE_NAME, \
+        image_name, \
         name=new_name, \
         env=[f"VNC_PW={new_pass}"], \
         endpoint_spec = new_spec, \
