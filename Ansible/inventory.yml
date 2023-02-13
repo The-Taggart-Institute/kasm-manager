@@ -1,0 +1,6 @@
+linux_workers:
+  hosts:
+    10.0.2.6:
+    10.0.2.5:
+  ansible_user: kasm
+  ansible_password: Password1234!

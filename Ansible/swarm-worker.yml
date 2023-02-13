@@ -1,0 +1,30 @@
+---
+- name: Setup Swarm Workers
+  vars_prompt:
+    - name: manager_ip
+      prompt: "Manager IP"
+      sensitive: false
+    - name: swarm_token
+      prompt: "Swarm Token"
+      sensisitve: false
+  become: true
+  become_user: root
+  tasks:
+    - name: Confirm Pip
+      ansible.builtin.apt:
+        name: python3-pip
+        update_cache: true
+    - name: Install Docker Module
+      ansible.builtin.pip:
+        name: docker
+    - name: Join Swarm
+      ansible.builtin.shell:
+        cmd: "docker swarm join --token {{swarm_token}} {{manager_ip}}:2377"
+    - name: Pull Terminal Image
+      community.docker.docker_image:
+        pull: true
+        name: taggarttech/tti-kasm-terminal
+    - name: Pull Kali Image
+      community.docker.docker_image:
+        pull: true
+        name: taggarttech/tti-kasm-kali
