@@ -14,8 +14,11 @@ COPY ./kasmvnc.yaml /etc/kasmvnc/kasmvnc.yaml
 WORKDIR $HOME
 
 ######### Customize Container Here ###########
-
-
+# TTI final touches
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+RUN $HOME/.cargo/bin/cargo install feroxbuster
+RUN $HOME/.cargo/bin/cargo install rustscan
+RUN ln -s $HOME/.cargo/bin/rustscan /usr/local/bin/rustscan
 
 ######### End Customizations ###########
 
@@ -25,12 +28,5 @@ RUN $STARTUPDIR/set_user_permission.sh $HOME
 ENV HOME /home/kasm-user
 WORKDIR $HOME
 RUN mkdir -p $HOME && chown -R 1000:0 $HOME
-
-# TTI final touches
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-RUN $HOME/.cargo/bin/cargo install feroxbuster
-RUN $HOME/.cargo/bin/cargo install rustscan
-USER root
-RUN ln -s $HOME/.cargo/bin/rustscan /usr/local/bin/rustscan
 
 USER 1000
