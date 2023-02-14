@@ -10,11 +10,7 @@ RUN apt update
 RUN apt install -y zaproxy vim-gtk3 terminator fish
 
 USER 1000
-WORKDIR $HOME/Downloads
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -O rustup.sh
-RUN chmod +x ./rustup.sh
-RUN ./rustup.sh -q --profile default
-RUN rm ./rustup.sh
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -q --profile default
 RUN $HOME/.cargo/bin/cargo install feroxbuster
 RUN $HOME/.cargo/bin/cargo install rustscan
 USER root
