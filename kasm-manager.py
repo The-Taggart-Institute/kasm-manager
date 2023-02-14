@@ -123,7 +123,7 @@ def create(image):
     new_secret_ref = docker.types.SecretReference(new_secret.id, new_secret.name)
     new_net = client.networks.create(f"{new_name}", driver="overlay")
     new_spec = docker.types.EndpointSpec(ports={new_port:6901})
-    new_resources = docker.types.Resources(mem_limit=2147483648)
+    new_resources = docker.types.Resources(cpu_limit=int(2 * 1e9), mem_limit=2147483648)
     new_service = client.services.create(
         image_name, \
         name=new_name, \
