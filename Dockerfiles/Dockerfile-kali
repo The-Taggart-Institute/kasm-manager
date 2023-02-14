@@ -9,13 +9,6 @@ ENV INST_SCRIPTS $STARTUPDIR/install
 RUN apt update
 RUN apt install -y zaproxy vim-gtk3 terminator fish
 
-USER 1000
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-RUN $HOME/.cargo/bin/cargo install feroxbuster
-RUN $HOME/.cargo/bin/cargo install rustscan
-USER root
-RUN ln -s /usr/local/bin/rustuscan $HOME/.cargo/bin/rustscan
-
 # TTI Copy custom yaml
 COPY ./kasmvnc.yaml /etc/kasmvnc/kasmvnc.yaml
 WORKDIR $HOME
@@ -32,5 +25,12 @@ RUN $STARTUPDIR/set_user_permission.sh $HOME
 ENV HOME /home/kasm-user
 WORKDIR $HOME
 RUN mkdir -p $HOME && chown -R 1000:0 $HOME
+
+# TTI final touches
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+RUN $HOME/.cargo/bin/cargo install feroxbuster
+RUN $HOME/.cargo/bin/cargo install rustscan
+USER root
+RUN ln -s /usr/local/bin/rustuscan $HOME/.cargo/bin/rustscan
 
 USER 1000
