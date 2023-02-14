@@ -6,8 +6,10 @@ import requests
 from rich import print as rprint
 import json
 import os
+from datetime import datetime
 
 # Constants
+# =========
 STATE_DIR = ".kasmstate"
 IMAGES = {
     "terminal": "taggarttech/tti-kasm-terminal:latest",
@@ -19,6 +21,9 @@ PORT_START = 6901
 PORT_END = 7000
 PASSWORD_API_URL = "https://passphrase.taggart-tech.com/api/pwlist?n=1&sep=_&digitMin=10&digitMax=99"
 PORTS = list(range(PORT_START, PORT_END))
+MAX_SESSION_TIME = 7200
+# END CONSTANTS
+# =============
 
 """
 `kasm-manager create`*
@@ -42,7 +47,7 @@ PORTS = list(range(PORT_START, PORT_END))
     1. Retrieve `kasm_` Services
     2. Print 'em
 
-`kasm-manager inspect <PORT>`
+`kasm-manager inspect <PORT>`*
     1.Retrieve `kasm_<PORT>` Service
     2. Print it out
 """
@@ -140,7 +145,8 @@ def create(image):
         "name": new_name,
         "port_id": new_port,
         "password": new_pass,
-        "image": image_name
+        "image": image_name,
+        "created": datetime.now().isoformat()
     })
 
 
@@ -216,6 +222,23 @@ def list():
     services = [s for s in client.services.list() if "kasm_" in s.name]
     for s in services:
         rprint(f"[bold cyan]{s.name}[/bold cyan]")
+
+@cli.command()
+@click.pass_context
+def prune(ctx):
+    """
+    Removes all sessions beyond max session time
+    """
+    client = docker.from_env()
+    services = [s for s in client.services.list() if "kasm_" in s.name]
+    now = datetime.now()
+    for s in services:
+        created_time = datetime.strptime(s.attrs["CreatedAt"][:-4], "%Y-%m-%dT%H:%M:%S.%f")
+        print(created_time)
+        if (now - created_time).seconds >= MAX_SESSION_TIME:
+            ctx.forward(destroy, port_id=int(s.name.replace("kasm_","")))
+
+
 
 if __name__ == '__main__':
     cli()
