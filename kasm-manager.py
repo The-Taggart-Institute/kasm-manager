@@ -234,7 +234,6 @@ def prune(ctx):
     now = datetime.now()
     for s in services:
         created_time = datetime.strptime(s.attrs["CreatedAt"][:-4], "%Y-%m-%dT%H:%M:%S.%f")
-        print(created_time)
         if (now - created_time).seconds >= MAX_SESSION_TIME:
             ctx.forward(destroy, port_id=int(s.name.replace("kasm_","")))
 
