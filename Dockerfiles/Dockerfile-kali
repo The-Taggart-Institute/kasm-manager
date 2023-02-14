@@ -7,7 +7,18 @@ ENV INST_SCRIPTS $STARTUPDIR/install
 
 # TTI Install packages
 RUN apt update
-RUN apt install -y zaproxy vim-gtk3
+RUN apt install -y zaproxy vim-gtk3 terminator fish
+
+USER 1000
+WORKDIR $HOME/Downloads
+RUN wget https://sh.rustup.rs -O rustup.sh
+RUN chmod +x ./rustup.sh
+RUN ./rustup.sh -q --profile default
+RUN rm ./rustup.sh
+RUN $HOME/.cargo/bin/cargo install feroxbuster
+RUN $HOME/.cargo/bin/cargo install rustscan
+USER root
+RUN ln -s /usr/local/bin/rustuscan $HOME/.cargo/bin/rustscan
 
 # TTI Copy custom yaml
 COPY ./kasmvnc.yaml /etc/kasmvnc/kasmvnc.yaml
