@@ -31,6 +31,6 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 RUN $HOME/.cargo/bin/cargo install feroxbuster
 RUN $HOME/.cargo/bin/cargo install rustscan
 USER root
-RUN ln -s /usr/local/bin/rustuscan $HOME/.cargo/bin/rustscan
+RUN ln -s $HOME/.cargo/bin/rustscan /usr/local/bin/rustscan
 
 USER 1000
