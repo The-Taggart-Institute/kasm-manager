@@ -19,16 +19,10 @@ resource "azurerm_linux_virtual_machine" "kasm-manager" {
 
 
   source_image_reference {
-    publisher = "ntegralinc1586961136942"
-    offer     = "ntg_ubuntu_22_04_docker"
-    sku       = "ntg_ubuntu_22_04_docker"
+    publisher = "canonical"
+    offer     = "0001-com-ubuntu-server-jammy"
+    sku       = "22_04-lts-gen2"
     version   = "latest"
-  }
-
-  plan {
-    name      = "ntg_ubuntu_22_04_docker"
-    publisher = "ntegralinc1586961136942"
-    product   = "ntg_ubuntu_22_04_docker"
   }
 
   provisioner "remote-exec" {
@@ -39,8 +33,6 @@ resource "azurerm_linux_virtual_machine" "kasm-manager" {
       host     = self.public_ip_address
     }
     inline = [
-      "sudo gpasswd -a ${var.admin_username} docker",
-      "sudo docker swarm init --advertise-addr ${azurerm_linux_virtual_machine.kasm-manager.private_ip_address}",
       "git clone https://github.com/The-Taggart-Institute/kasm-manager",
     ]
   }
