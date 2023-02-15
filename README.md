@@ -1,4 +1,4 @@
-# KASM Manager
+# Kasm Manager
 
 Frontend for deploying Kasm workspaces using Docker Swarm.
 
