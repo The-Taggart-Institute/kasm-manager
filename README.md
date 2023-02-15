@@ -54,12 +54,9 @@ It'll take a while, but afterwards your worker nodes will be set up to run Kasm 
 
 ### Terraform
 
-For Azure users, a set of Terraform Plans is included to get you started with a Docker Swarm cluster. Because we're using a Marketplace Image, you'll have to run this first.
+For Azure users, a set of Terraform Plans is included to get you started with a Docker Swarm cluster.
 
-```shell
-az vm image accept-terms --urn ntegralinc1586961136942:ntg_ubuntu_22_04_docker:ntg_ubuntu_22_04_docker:latest
-```
-Then, in the the `Terraform` folder:
+In the the `Terraform` folder:
 
 ```shell
 terraform apply
