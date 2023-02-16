@@ -11,6 +11,7 @@ RUN apt install -y zaproxy vim-gtk3 terminator fish
 
 # TTI Copy custom yaml
 COPY ./kasmvnc.yaml /etc/kasmvnc/kasmvnc.yaml
+COPY ./tti_banner.png /usr/share/backgrounds/kali-16x9/default
 WORKDIR $HOME
 
 ######### Customize Container Here ###########
