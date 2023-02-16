@@ -1,7 +1,12 @@
 kasm-workers:
-  hosts:
-    10.0.2.6:
-    10.0.2.5:
+  children:
+    managers:
+      hosts:
+        10.0.2.4:
+    workers:
+      hosts:
+        10.0.2.6:
+        10.0.2.5:
   vars:
     ansible_user: kasm
     ansible_password: Password1234!

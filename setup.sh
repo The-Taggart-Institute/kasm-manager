@@ -11,11 +11,13 @@ echo \
   
 sudo apt update
 sudo apt install -y letsencrypt python3-pip sshpass docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-sudo gpasswd -a kasm docker
-sudo pip3 install docker rich requests ansible
+sudo pip3 install ansible
+ansible-galaxy collection install community.docker
+cd Ansible
+ansible-playbook -i inventory.yml swarm-manager.yml
+sudo docker swarm join-token worker
+ansible-playbook -i inventory.yml swarm-worker.yml
+cd ..
 sudo certbot certonly
-docker image pull taggarttech/tti-kasm-terminal
-docker image pull taggarttech/tti-kasm-kali
 sudo docker secret create kasm_cert /etc/letsencrypt/live/$DOMAIN/fullchain.pem
 sudo docker secret create kasm_key /etc/letsencrypt/live/$DOMAIN/privkey.pem
-ansible-galaxy collection install community.docker

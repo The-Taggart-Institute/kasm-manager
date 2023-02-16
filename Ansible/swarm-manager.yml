@@ -4,27 +4,28 @@
     - name: manager_ip
       prompt: "Manager IP"
       private: false
-    - name: swarm_token
-      prompt: "Swarm Token"
-      private: false
   hosts: kasm-workers
   become: true
   become_user: root
   roles:
     - docker
   tasks:
-    - name: Confirm Pip
+    - name: Confirm Packages
       ansible.builtin.apt:
-        name: python3-pip
+        name: [python3-pip, sshpass, letsencrypt]
         update_cache: true
     - name: Install Docker Module
       ansible.builtin.pip:
-        name: docker
-    - name: Join Swarm
+        name: [docker, rich]
+    - name: Pull Kasm-Manager Repo
+      ansible.builtin.git:
+        clone: true
+        repo: https://github.com/The-Taggart-Institute/kasm-manager
+        dest: /home/kasm/kasm-manager
+    - name: Init Swarm
       community.docker.docker_swarm:
-        state: join
-        join_token: "{{ swarm_token }}"
-        remote_addrs: ["{{ manager_ip }}:2377"]
+        state: present
+        advertise_addr: {{ manager_ip }}
     - name: Pull Terminal Image
       community.docker.docker_image:
         source: pull
@@ -33,3 +34,7 @@
       community.docker.docker_image:
         source: pull
         name: taggarttech/tti-kasm-kali
+    - name: Add Kasm to Docker
+      ansible.builtin.user:
+        name: kasm
+        groups: [docker]
