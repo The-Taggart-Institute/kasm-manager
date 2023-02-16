@@ -4,7 +4,7 @@
     - name: manager_ip
       prompt: "Manager IP"
       private: false
-  hosts: kasm-workers
+  hosts: kasm-managers
   become: true
   become_user: root
   roles:
