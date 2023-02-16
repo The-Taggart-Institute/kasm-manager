@@ -17,11 +17,6 @@
     - name: Install Docker Module
       ansible.builtin.pip:
         name: [docker, rich]
-    - name: Pull Kasm-Manager Repo
-      ansible.builtin.git:
-        clone: true
-        repo: https://github.com/The-Taggart-Institute/kasm-manager
-        dest: /home/kasm/kasm-manager
     - name: Init Swarm
       community.docker.docker_swarm:
         state: present
