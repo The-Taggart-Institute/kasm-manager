@@ -7,7 +7,7 @@
     - name: swarm_token
       prompt: "Swarm Token"
       private: false
-  hosts: kasm-workers
+  hosts: workers
   become: true
   become_user: root
   roles:

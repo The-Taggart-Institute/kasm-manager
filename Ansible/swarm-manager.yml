@@ -1,10 +1,10 @@
 ---
-- name: Setup Swarm Workers
+- name: Setup Swarm Manager
   vars_prompt:
     - name: manager_ip
       prompt: "Manager IP"
       private: false
-  hosts: kasm-managers
+  hosts: managers
   become: true
   become_user: root
   roles:
