@@ -25,7 +25,7 @@
     - name: Init Swarm
       community.docker.docker_swarm:
         state: present
-        advertise_addr: {{ manager_ip }}
+        advertise_addr: "{{ manager_ip }}"
     - name: Pull Terminal Image
       community.docker.docker_image:
         source: pull
