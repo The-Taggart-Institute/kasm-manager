@@ -13,7 +13,8 @@ from datetime import datetime
 STATE_DIR = ".kasmstate"
 IMAGES = {
     "terminal": "taggarttech/tti-kasm-terminal:latest",
-    "kali": "taggarttech/tti-kasm-kali:latest"
+    "kali": "taggarttech/tti-kasm-kali:latest",
+    "pancakescon": "taggarttech/tti-kasm-pc4:latest"
 }
 CERT_SECRET_NAME = "kasm_cert"
 KEY_SECRET_NAME = "kasm_key"
@@ -22,6 +23,9 @@ PORT_END = 7000
 PASSWORD_API_URL = "https://passphrase.taggart-tech.com/api/pwlist?n=1&sep=_&digitMin=10&digitMax=99"
 PORTS = list(range(PORT_START, PORT_END))
 MAX_SESSION_TIME = 7200
+CPU_LIMIT = int(2 * 1e9)
+MEM_LIMIT = 2147483648
+# MEM_LIMIT = 3221225472
 # END CONSTANTS
 # =============
 
@@ -128,7 +132,7 @@ def create(image):
     new_secret_ref = docker.types.SecretReference(new_secret.id, new_secret.name)
     new_net = client.networks.create(f"{new_name}", driver="overlay")
     new_spec = docker.types.EndpointSpec(ports={new_port:6901})
-    new_resources = docker.types.Resources(cpu_limit=int(2 * 1e9), mem_limit=2147483648)
+    new_resources = docker.types.Resources(cpu_limit=CPU_LIMIT, mem_limit=MEM_LIMIT)
     new_service = client.services.create(
         image_name, \
         name=new_name, \
