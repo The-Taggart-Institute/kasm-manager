@@ -1,0 +1,61 @@
+FROM kasmweb/core-ubuntu-jammy:1.12.0-rolling
+USER root
+
+ENV HOME /home/kasm-default-profile
+ENV STARTUPDIR /dockerstartup
+ENV INST_SCRIPTS $STARTUPDIR/install
+
+# TTI Install packages
+RUN apt update
+RUN apt install -y vim-gtk3 terminator fish wget unzip fonts-liberation libu2f-udev ubuntu-restricted-extras
+
+# TTI Copy custom yaml
+COPY ./kasmvnc.yaml /etc/kasmvnc/kasmvnc.yaml
+COPY ./tti_banner.png /usr/share/extra/backgrounds/bg_default.png
+WORKDIR $HOME
+
+######### Customize Container Here ###########
+# Install Lab content
+RUN wget https://whisperwolf.net/webroot.zip
+RUN unzip webroot.zip
+RUN mv var/www/html/wordpress Desktop/webroot
+RUN rm -rf var webroot.zip
+
+# Install Firefox
+RUN wget -O firefox.tar.bz2 'https://download-installer.cdn.mozilla.net/pub/firefox/releases/110.0.1/linux-x86_64/en-US/firefox-110.0.1.tar.bz2'
+RUN tar xjf firefox.tar.bz2
+RUN mv firefox /opt/
+RUN ln -s /opt/firefox/firefox /usr/local/bin/firefox
+RUN wget 'https://raw.githubusercontent.com/mozilla/sumo-kb/main/install-firefox-linux/firefox.desktop' -P /usr/share/applications
+RUN rm firefox.tar.bz2
+
+# Install VSCode
+RUN wget -O vscode.deb 'https://code.visualstudio.com/sha/download?build=stable&os=linux-deb-x64'
+RUN dpkg -i ./vscode.deb
+RUN rm ./vscode.deb
+
+
+# Set Fish Shell
+RUN chsh -s /usr/bin/fish kasm-user
+
+# Copy Desktop Shortcuts
+RUN cp /usr/share/applications/code.desktop Desktop/code.desktop
+RUN cp /usr/share/applications/terminator.desktop Desktop/terminator.desktop
+RUN cp /usr/share/applications/firefox.desktop Desktop/firefox.desktop
+
+
+# Fix exec
+RUN sed -i 's/Exec=.\+/Exec=\/usr\/share\/code\/code --no-sandbox/' Desktop/code.desktop
+# Dark Mode
+RUN sed -i 's/Greybird/Greybird-dark/' /etc/xdg/xfce4/xfconf/xfce-perchannel-xml/xsettings.xml
+
+######### End Customizations ###########
+
+RUN chown 1000:0 $HOME
+RUN $STARTUPDIR/set_user_permission.sh $HOME
+
+ENV HOME /home/kasm-user
+WORKDIR $HOME
+RUN mkdir -p $HOME && chown -R 1000:0 $HOME
+
+USER 1000
