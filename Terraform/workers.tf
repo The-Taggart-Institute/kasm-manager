@@ -1,5 +1,12 @@
+variable worker_count {
+  type = number
+  description = "How many workers we want"
+  default = 3
+}
+
+
 resource "azurerm_linux_virtual_machine" "kasm-worker" {
-  count                           = 4
+  count                           = var.worker_count
   name                            = "kasm-worker-${count.index}"
   location                        = var.region
   resource_group_name             = azurerm_resource_group.kasm.name
@@ -27,7 +34,7 @@ resource "azurerm_linux_virtual_machine" "kasm-worker" {
 }
 
 resource "azurerm_network_interface" "kasm-worker" {
-  count               = 4
+  count               = var.worker_count
   name                = "kasm-worker-${count.index}"
   location            = var.region
   resource_group_name = azurerm_resource_group.kasm.name
