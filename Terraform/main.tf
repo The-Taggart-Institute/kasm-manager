@@ -31,7 +31,7 @@ variable "admin_password" {
 
 variable "region" {
   type    = string
-  default = "westus"
+  default = "westus2"
 }
 
 resource "azurerm_resource_group" "kasm" {
