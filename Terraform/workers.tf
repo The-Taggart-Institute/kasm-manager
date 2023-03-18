@@ -27,7 +27,7 @@ resource "azurerm_linux_virtual_machine" "kasm-worker" {
 }
 
 resource "azurerm_network_interface" "kasm-worker" {
-  count               = 2
+  count               = 4
   name                = "kasm-worker-${count.index}"
   location            = "westus2"
   resource_group_name = azurerm_resource_group.kasm.name
