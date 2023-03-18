@@ -1,7 +1,7 @@
 
 resource "azurerm_linux_virtual_machine" "kasm-manager" {
   name                            = "kasm-manager"
-  location                        = "westus2"
+  location                        = var.region
   resource_group_name             = azurerm_resource_group.kasm.name
   network_interface_ids           = [azurerm_network_interface.kasm-manager.id]
   size                            = "Standard_D4s_v3"
@@ -40,7 +40,7 @@ resource "azurerm_linux_virtual_machine" "kasm-manager" {
 
 resource "azurerm_network_interface" "kasm-manager" {
   name                = "kasm-manager"
-  location            = "westus2"
+  location            = var.region
   resource_group_name = azurerm_resource_group.kasm.name
 
   ip_configuration {
@@ -53,7 +53,7 @@ resource "azurerm_network_interface" "kasm-manager" {
 
 resource "azurerm_network_security_group" "kasm-manager" {
   name                = "kasm-manager-nsg"
-  location            = "westus2"
+  location            = var.region
   resource_group_name = azurerm_resource_group.kasm.name
 
   security_rule {
@@ -99,7 +99,7 @@ resource "azurerm_network_interface_security_group_association" "kasm-manager" {
 
 resource "azurerm_public_ip" "kasm-manager" {
   name                = "kasm-manager-public-ip"
-  location            = "westus2"
+  location            = var.region
   resource_group_name = azurerm_resource_group.kasm.name
   allocation_method   = "Dynamic"
 }
