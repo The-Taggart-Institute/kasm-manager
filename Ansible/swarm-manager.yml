@@ -25,10 +25,10 @@
       community.docker.docker_image:
         source: pull
         name: taggarttech/tti-kasm-terminal
-    - name: Pull Kali Image
+    - name: Pull PC4 Image
       community.docker.docker_image:
         source: pull
-        name: taggarttech/tti-kasm-kali
+        name: taggarttech/tti-kasm-pc4
     - name: Add Kasm to Docker
       ansible.builtin.user:
         name: kasm
