@@ -1,10 +1,10 @@
 resource "azurerm_linux_virtual_machine" "kasm-worker" {
-  count                           = 2
+  count                           = 4
   name                            = "kasm-worker-${count.index}"
   location                        = "westus2"
   resource_group_name             = azurerm_resource_group.kasm.name
   network_interface_ids           = [azurerm_network_interface.kasm-worker[count.index].id]
-  size                            = "Standard_D4s_v3"
+  size                            = "Standard_B4ms_v3"
   computer_name                   = "kasm-worker"
   admin_username                  = var.admin_username
   admin_password                  = var.admin_password
