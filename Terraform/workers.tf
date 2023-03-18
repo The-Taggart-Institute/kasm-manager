@@ -4,7 +4,7 @@ resource "azurerm_linux_virtual_machine" "kasm-worker" {
   location                        = "westus2"
   resource_group_name             = azurerm_resource_group.kasm.name
   network_interface_ids           = [azurerm_network_interface.kasm-worker[count.index].id]
-  size                            = "Standard_D2s_v3"
+  size                            = "Standard_D4s_v3"
   computer_name                   = "kasm-worker"
   admin_username                  = var.admin_username
   admin_password                  = var.admin_password
@@ -18,16 +18,10 @@ resource "azurerm_linux_virtual_machine" "kasm-worker" {
   }
 
   source_image_reference {
-    publisher = "ntegralinc1586961136942"
-    offer     = "ntg_ubuntu_22_04_docker"
-    sku       = "ntg_ubuntu_22_04_docker"
+    publisher = "canonical"
+    offer     = "0001-com-ubuntu-server-jammy"
+    sku       = "22_04-lts-gen2"
     version   = "latest"
-  }
-
-  plan {
-    name      = "ntg_ubuntu_22_04_docker"
-    publisher = "ntegralinc1586961136942"
-    product   = "ntg_ubuntu_22_04_docker"
   }
 
 }
