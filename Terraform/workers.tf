@@ -1,7 +1,7 @@
 variable worker_count {
   type = number
   description = "How many workers we want"
-  default = 3
+  default = 4
 }
 
 
