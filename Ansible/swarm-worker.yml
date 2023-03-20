@@ -32,4 +32,4 @@
     - name: Pull Kali Image
       community.docker.docker_image:
         source: pull
-        name: taggarttech/tti-kasm-kali
+        name: taggarttech/tti-kasm-pc4
