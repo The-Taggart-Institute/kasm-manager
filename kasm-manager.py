@@ -176,7 +176,7 @@ def destroy(port_id: int):
 
     target_name = f"kasm_{port_id}"
 
-    rprint(f"[bold blue][+] Attempting to destroying {target_name}[/bold blue]")
+    rprint(f"[bold blue][+] Attempting to destroy {target_name}[/bold blue]")
 
     # Get all services
     services = {s.name: s for s in client.services.list()}
