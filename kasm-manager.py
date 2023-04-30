@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from random import choice
+from secrets import token_urlsafe
 import docker
 import click
 import requests
@@ -19,7 +20,7 @@ CERT_SECRET_NAME = "kasm_cert"
 KEY_SECRET_NAME = "kasm_key"
 PORT_START = 6901
 PORT_END = 7000
-PASSWORD_API_URL = "https://passphrase.taggart-tech.com/api/pwlist?n=1&sep=_&digitMin=10&digitMax=99"
+PASSWORD_LEN = 20
 PORTS = list(range(PORT_START, PORT_END))
 MAX_SESSION_TIME = 7200
 # END CONSTANTS
@@ -74,11 +75,7 @@ def cli():
     pass
 
 def get_password() -> str:
-    r = requests.get(PASSWORD_API_URL)
-    try:
-        return r.json()[0]
-    except:
-        raise ConnectionError("Could not retrieve password!")
+    return token_urlsafe(PASSWORD_LEN)
 
 @cli.command(help="Creates a new Kasm Instance")
 @click.option("-i", "--image", default="terminal", show_default=True, help="Image type")
