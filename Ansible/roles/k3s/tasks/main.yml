@@ -1,0 +1,5 @@
+---
+- name: Install prerequisites
+  ansible.builtin.apt:
+    name: [curl]
+    update_cache: true

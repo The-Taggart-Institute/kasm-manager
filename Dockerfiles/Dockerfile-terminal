@@ -1,4 +1,4 @@
-FROM kasmweb/terminal:1.12.0-rolling
+FROM docker.io/kasmweb/terminal:1.16.1
 USER root
 
 ENV HOME /home/kasm-default-profile
@@ -8,6 +8,9 @@ ENV INST_SCRIPTS $STARTUPDIR/install
 
 # TTI Copy custom yaml
 COPY ./kasmvnc.yaml /etc/kasmvnc/kasmvnc.yaml
+# Newer base images hardcode -sslOnly on the vncserver CLI, overriding require_ssl: false;
+# strip it so the config file governs TLS (we terminate TLS at the ingress instead).
+RUN sed -i 's/ -sslOnly//' /dockerstartup/vnc_startup.sh
 WORKDIR $HOME
 
 ######### Customize Container Here ###########

@@ -1,240 +1,325 @@
 #!/usr/bin/env python3
 from random import choice
 from secrets import token_urlsafe
-import docker
-import click
-import requests
-from rich import print as rprint
+from datetime import datetime, timezone
+import base64
 import json
 import os
-from datetime import datetime
+
+import click
+import kubernetes
+from kubernetes import client as k8s
+from kubernetes.client.exceptions import ApiException
+from rich import print as rprint
+from rich.table import Table
 
 # Constants
 # =========
-STATE_DIR = ".kasmstate"
+NAMESPACE = "kasm"
 IMAGES = {
     "terminal": "taggarttech/tti-kasm-terminal:latest",
     "kali": "taggarttech/tti-kasm-kali:latest"
 }
-CERT_SECRET_NAME = "kasm_cert"
-KEY_SECRET_NAME = "kasm_key"
-PORT_START = 6901
-PORT_END = 7000
+ID_START = 6901   # logical instance IDs, no longer real ports
+ID_END = 7000
+IDS = list(range(ID_START, ID_END))
 PASSWORD_LEN = 20
-PORTS = list(range(PORT_START, PORT_END))
 MAX_SESSION_TIME = 7200
+TLS_SECRET = "kasm-wildcard-tls"
+LABEL_SELECTOR = "app=kasm"
+DOMAIN = os.environ.get("KASM_DOMAIN", "")
 # END CONSTANTS
 # =============
 
 """
-`kasm-manager create`*
-    1. Choose a random port
-    2. Get a random password*
-        Store password in docker secrets
-    3. Create a new overlay network*
-    4. Create a new endpoint spec (port forward mapping)*
-    5. Create a new service*
-    6. Returns service name/id*
+`kasm-manager create`
+    1. Pick an unused logical instance ID
+    2. Generate a random password, stored in a Kubernetes Secret
+    3. Create a Deployment (port 6901, VNC_PW env, 2 CPU / 2 Gi limits)
+    4. Create a ClusterIP Service exposing port 6901
+    5. Create an Ingress routing kasm-<id>.<KASM_DOMAIN> to the Service
 
-`kasm-manager destroy <PORT>`*
-    1. Retrieve Docker Secret
-    2. Delete Secret
-    3. Retrieve Service
-    4. Delete Service
-    5. Retrieve Network
-    6. Delete Network
+`kasm-manager destroy <ID>`
+    Idempotently deletes the Ingress, Service, Deployment, and Secret.
+    A 404 on any object is not an error.
 
-`kasm-manager list`*
-    1. Retrieve `kasm_` Services
-    2. Print 'em
+`kasm-manager list`
+    Lists all labeled instances with image, age, and URL.
 
-`kasm-manager inspect <PORT>`*
-    1.Retrieve `kasm_<PORT>` Service
-    2. Print it out
+`kasm-manager inspect <ID>`
+    Prints the composed instance details as indented JSON.
+
+`kasm-manager prune`
+    Destroys every instance older than MAX_SESSION_TIME.
 """
 
 
-def load(port_id: int) -> dict:
+def kube() -> tuple[k8s.CoreV1Api, k8s.AppsV1Api, k8s.NetworkingV1Api]:
+    """
+    Returns (core, apps, net) API clients, loading kubeconfig or falling
+    back to in-cluster config (for a future in-cluster web backend).
+    """
     try:
-        with open(f"{STATE_DIR}/kasm_{port_id}") as f:
-            return json.load(f)
-    except:
-        rprint(f"[bold red][!] Could not load data for {port_id}[/bold red]")
+        kubernetes.config.load_kube_config()
+    except kubernetes.config.config_exception.ConfigException:
+        kubernetes.config.load_incluster_config()
+    return k8s.CoreV1Api(), k8s.AppsV1Api(), k8s.NetworkingV1Api()
 
-def save(data: dict):
-    if not os.path.isdir(STATE_DIR):
-        os.mkdir(STATE_DIR)
-    port_id = data["port_id"]
-    with open(f"{STATE_DIR}/kasm_{port_id}.json", "w") as f:
-        json.dump(data, f, indent=4)
-    rprint(f"[bold green][+] Saved {port_id}[/bold green]")    
+
+def get_password() -> str:
+    return token_urlsafe(PASSWORD_LEN)
+
+
+def instance_url(id: int) -> str:
+    return f"https://kasm-{id}.{DOMAIN}" if DOMAIN else ""
+
+
+def instance_objects(id: int) -> dict | None:
+    """
+    Composes instance details from the Secret + Deployment.
+    Returns None when the deployment does not exist.
+    """
+    core, apps, _ = kube()
+    try:
+        deployment = apps.read_namespaced_deployment(f"kasm-{id}", NAMESPACE)
+    except ApiException as e:
+        if e.status == 404:
+            return None
+        raise
+    try:
+        password = base64.b64decode(
+            core.read_namespaced_secret(f"kasm-{id}", NAMESPACE).data["password"]
+        ).decode("utf-8")
+    except ApiException:
+        password = None
+    return {
+        "name": deployment.metadata.name,
+        "id": id,
+        "image": deployment.metadata.labels.get("kasm-image"),
+        "created": deployment.metadata.creation_timestamp.isoformat(),
+        "password": password,
+        "url": instance_url(id),
+    }
+
+
+def delete_instance(id: int):
+    """
+    Deletes the Ingress, Service, Deployment, and Secret for the given ID.
+    404 on any object is fine — fully idempotent.
+    """
+    core, apps, net = kube()
+    target_name = f"kasm-{id}"
+    for kind, delete in [
+        ("Ingress", net.delete_namespaced_ingress),
+        ("Service", core.delete_namespaced_service),
+        ("Deployment", apps.delete_namespaced_deployment),
+        ("Secret", core.delete_namespaced_secret),
+    ]:
+        try:
+            delete(target_name, NAMESPACE)
+            rprint(f"[bold red][!] Removed {kind} {target_name}[/bold red]")
+        except ApiException as e:
+            if e.status != 404:
+                raise
 
 
 @click.group()
 def cli():
     pass
 
-def get_password() -> str:
-    return token_urlsafe(PASSWORD_LEN)
 
 @cli.command(help="Creates a new Kasm Instance")
 @click.option("-i", "--image", default="terminal", show_default=True, help="Image type")
 def create(image):
     """
-    Launches a new Kasm Instance. Returns the KasmInstance
+    Launches a new Kasm Instance.
     """
+    if not DOMAIN:
+        rprint("[bold red][!] KASM_DOMAIN is not set. Export it first, e.g. export KASM_DOMAIN=lab.example.com[/bold red]")
+        return
+
     # Retrieve image name
     try:
         image_name = IMAGES[image]
-        images = docker
-    except:
+    except KeyError:
         rprint(f"[bold red][!] No such image type: {image}[/bold red]")
         return
 
-    
-    # Initialize Client
-    client = docker.from_env()
-    
-    # Confirm Image exists
-    try:
-        client.images.get(image_name)
-    except:
-        rprint(f"[bold yellow][?] Image {image_name} not present, trying to pull...[/bold yellow]")
-        client.images.pull(image_name)
-        rprint(f"[bold blue][+] Pulled image {image_name}[/bold blue]")
+    core, apps, net = kube()
 
-    # Guarantees we only use available ports
-    used_ports = [int(i.name.replace("kasm_", "")) for i in client.services.list() if "kasm_" in i.name]
-    available_ports = [p for p in PORTS if p not in used_ports]
-
-    # Gets Cert/Key secrets
-    try:
-        cert_secret = client.secrets.get(CERT_SECRET_NAME)
-        cert_secret_ref = docker.types.SecretReference(cert_secret.id, cert_secret.name)
-        key_secret = client.secrets.get(KEY_SECRET_NAME)
-        key_secret_ref = docker.types.SecretReference(key_secret.id, key_secret.name)
-    except:
-        rprint(f"[bold red][!] Could not load cert secrets[/bold red]")
+    # Guarantees we only use available IDs
+    deployments = apps.list_namespaced_deployment(NAMESPACE, label_selector=LABEL_SELECTOR)
+    used_ids = [int(d.metadata.labels["kasm-id"]) for d in deployments.items]
+    available_ids = [i for i in IDS if i not in used_ids]
+    if not available_ids:
+        rprint("[bold red][!] No instance IDs available[/bold red]")
         return
 
-    rprint("[bold blue][+] Creating Kasm Instance![/bold blue]")
-    new_port = choice(available_ports)
-    new_name = f"kasm_{new_port}"
+    new_id = choice(available_ids)
+    new_name = f"kasm-{new_id}"
     new_pass = get_password()
-    new_secret = client.secrets.create(name=new_name, data=new_pass.encode())
-    new_secret_ref = docker.types.SecretReference(new_secret.id, new_secret.name)
-    new_net = client.networks.create(f"{new_name}", driver="overlay")
-    new_spec = docker.types.EndpointSpec(ports={new_port:6901})
-    new_resources = docker.types.Resources(cpu_limit=int(2 * 1e9), mem_limit=2147483648)
-    new_service = client.services.create(
-        image_name, \
-        name=new_name, \
-        env=[f"VNC_PW={new_pass}"], \
-        endpoint_spec = new_spec, \
-        networks = [new_net.id], \
-        secrets = [new_secret_ref, key_secret_ref, cert_secret_ref], \
-        resources = new_resources
+    labels = {"app": "kasm", "kasm-id": str(new_id), "kasm-image": image}
+
+    rprint(f"[bold blue][+] Creating Kasm Instance {new_name}![/bold blue]")
+
+    # Secret holding the VNC password
+    core.create_namespaced_secret(
+        NAMESPACE,
+        k8s.V1Secret(
+            metadata=k8s.V1ObjectMeta(name=new_name, labels=labels),
+            string_data={"password": new_pass},
+        ),
     )
+
+    # Deployment running the workspace container
+    apps.create_namespaced_deployment(
+        NAMESPACE,
+        k8s.V1Deployment(
+            metadata=k8s.V1ObjectMeta(name=new_name, labels=labels),
+            spec=k8s.V1DeploymentSpec(
+                replicas=1,
+                selector=k8s.V1LabelSelector(match_labels={"kasm-id": str(new_id)}),
+                template=k8s.V1PodTemplateSpec(
+                    metadata=k8s.V1ObjectMeta(name=new_name, labels=labels),
+                    spec=k8s.V1PodSpec(
+                        containers=[
+                            k8s.V1Container(
+                                name=new_name,
+                                image=image_name,
+                                ports=[k8s.V1ContainerPort(container_port=6901)],
+                                env=[k8s.V1EnvVar(name="VNC_PW", value=new_pass)],
+                                resources=k8s.V1ResourceRequirements(
+                                    limits={"cpu": "2", "memory": "2Gi"}
+                                ),
+                                image_pull_policy="IfNotPresent",
+                            )
+                        ]
+                    ),
+                ),
+            ),
+        ),
+    )
+
+    # ClusterIP Service for the workspace
+    core.create_namespaced_service(
+        NAMESPACE,
+        k8s.V1Service(
+            metadata=k8s.V1ObjectMeta(name=new_name, labels=labels),
+            spec=k8s.V1ServiceSpec(
+                type="ClusterIP",
+                selector={"kasm-id": str(new_id)},
+                ports=[k8s.V1ServicePort(port=6901, target_port=6901)],
+            ),
+        ),
+    )
+
+    # Reference the wildcard cert only if it exists; Traefik fails to route
+    # ingresses that name a missing secret, so fall back to its default cert.
+    try:
+        core.read_namespaced_secret(TLS_SECRET, NAMESPACE)
+        ingress_tls = [k8s.V1IngressTLS(hosts=[f"*.{DOMAIN}"], secret_name=TLS_SECRET)]
+    except ApiException:
+        ingress_tls = None
+
+    # Ingress routing kasm-<id>.<domain> through the bundled Traefik
+    net.create_namespaced_ingress(
+        NAMESPACE,
+        k8s.V1Ingress(
+            metadata=k8s.V1ObjectMeta(name=new_name, labels=labels),
+            spec=k8s.V1IngressSpec(
+                rules=[
+                    k8s.V1IngressRule(
+                        host=f"kasm-{new_id}.{DOMAIN}",
+                        http=k8s.V1HTTPIngressRuleValue(
+                            paths=[
+                                k8s.V1HTTPIngressPath(
+                                    path="/",
+                                    path_type="Prefix",
+                                    backend=k8s.V1IngressBackend(
+                                        service=k8s.V1IngressServiceBackend(
+                                            name=new_name,
+                                            port=k8s.V1ServiceBackendPort(number=6901),
+                                        )
+                                    ),
+                                )
+                            ]
+                        ),
+                    )
+                ],
+                tls=ingress_tls,
+            ),
+        ),
+    )
+
     rprint(f"[bold green][+] Instance {new_name} created[/bold green]")
-    rprint(f"[bold green][+] {new_name} Password: {new_pass}[/bold green]")
-
-    save({
-        "name": new_name,
-        "port_id": new_port,
-        "password": new_pass,
-        "image": image_name,
-        "created": datetime.now().isoformat()
-    })
+    rprint(f"[bold green][+] URL: https://kasm-{new_id}.{DOMAIN}[/bold green]")
+    rprint(f"[bold green][+] Password: {new_pass}[/bold green]")
+    rprint("[bold green][+] User: kasm_user[/bold green]")
 
 
-@cli.command(help="Inspect a running Kasm Korkspace at PORT_ID")
-@click.argument("port_id")
-def inspect(port_id: int):
+@cli.command(help="Inspect a running Kasm Workspace at ID")
+@click.argument("id", type=int)
+def inspect(id: int):
     """
-    Get details about a running image
+    Get details about a running instance
     """
-    target_name = f"kasm_{port_id}"
-    # Get target service
-    try:
-        with open(f"{STATE_DIR}/kasm_{port_id}.json") as f:
-            data = json.dumps(json.load(f), indent=4)
-            rprint(f"[bold cyan]{data}[/bold cyan]")
-    except:
-        rprint(f"[bold red][!] Could not locate service {target_name} [/bold red]")
-    
-
-@cli.command(help="Destroy Kasm Instance at PORT_ID")
-@click.argument("port_id")
-def destroy(port_id: int):
-    """
-    Removes service, network, and secrets for given port id
-    """
-    client = docker.from_env()
-
-    target_name = f"kasm_{port_id}"
-
-    rprint(f"[bold blue][+] Attempting to destroy {target_name}[/bold blue]")
-
-    # Get all services
-    services = {s.name: s for s in client.services.list()}
-    networks = {n.name: n for n in client.networks.list()}
-    secrets = {s.name:s for s in client.secrets.list()}
-
-    # Get target service
-    try:
-        target_service = services[target_name]
-    except:
-        rprint(f"[bold red][!] Could not locate service {target_name} [/bold red]")
+    data = instance_objects(id)
+    if data is None:
+        rprint(f"[bold red][!] Could not locate instance kasm-{id}[/bold red]")
         return
+    rprint(f"[bold cyan]{json.dumps(data, indent=4)}[/bold cyan]")
 
-    # Get target secret
-    try:
-        target_secret = secrets[target_name]
-    except IndexError:
-        rprint(f"[bold red][!] Could not locate secret {target_name} [/bold red]")
-        return
 
-    # Get target network
-    try:
-        target_network = networks[target_name]
-    except IndexError:
-        rprint(f"[bold red][!] Could not locate network {target_name} [/bold red]")
-        return
+@cli.command(help="Destroy Kasm Instance at ID")
+@click.argument("id", type=int)
+def destroy(id: int):
+    """
+    Removes Ingress, Service, Deployment, and Secret for the given ID
+    """
+    rprint(f"[bold blue][+] Attempting to destroy kasm-{id}[/bold blue]")
+    delete_instance(id)
+    rprint(f"[bold green][+] kasm-{id} destroyed[/bold green]")
 
-    rprint(f"[bold red][!] Removing service {target_name} [/bold red]")
-    target_service.remove()
-    rprint(f"[bold red][!] Removing network {target_name} [/bold red]")
-    target_network.remove()
-    rprint(f"[bold red][!] Removing secret {target_name} [/bold red]")
-    target_secret.remove()
-    rprint(f"[bold red][!] Removing state file for {target_name} [/bold red]")
-    try:
-        os.remove(f"{STATE_DIR}/{target_name}.json")
-    except:
-        rprint(f"[bold red][!] No state file for {target_name} [/bold red]")
 
-@cli.command()
+@cli.command(help="List running Kasm Instances")
 def list():
-    client = docker.from_env()
-    services = [s for s in client.services.list() if "kasm_" in s.name]
-    for s in services:
-        rprint(f"[bold cyan]{s.name}[/bold cyan]")
+    _, apps, _ = kube()
+    deployments = apps.list_namespaced_deployment(NAMESPACE, label_selector=LABEL_SELECTOR)
+    now = datetime.now(timezone.utc)
+    table = Table(title="Kasm Instances")
+    table.add_column("Name")
+    table.add_column("Image")
+    table.add_column("Age")
+    table.add_column("URL")
+    for d in sorted(deployments.items, key=lambda d: d.metadata.labels["kasm-id"]):
+        id = int(d.metadata.labels["kasm-id"])
+        age = now - d.metadata.creation_timestamp
+        hours, remainder = divmod(int(age.total_seconds()), 3600)
+        minutes, seconds = divmod(remainder, 60)
+        table.add_row(
+            d.metadata.name,
+            d.metadata.labels.get("kasm-image"),
+            f"{hours}h{minutes}m{seconds}s",
+            instance_url(id),
+        )
+    rprint(table)
 
-@cli.command()
-@click.pass_context
-def prune(ctx):
+
+@cli.command(help="Remove all sessions beyond MAX_SESSION_TIME")
+def prune():
     """
-    Removes all sessions beyond max session time
+    Removes all instances older than MAX_SESSION_TIME.
     """
-    client = docker.from_env()
-    services = [s for s in client.services.list() if "kasm_" in s.name]
-    now = datetime.now()
-    for s in services:
-        created_time = datetime.strptime(s.attrs["CreatedAt"][:-4], "%Y-%m-%dT%H:%M:%S.%f")
-        if (now - created_time).seconds >= MAX_SESSION_TIME:
-            ctx.forward(destroy, port_id=int(s.name.replace("kasm_","")))
+    _, apps, _ = kube()
+    deployments = apps.list_namespaced_deployment(NAMESPACE, label_selector=LABEL_SELECTOR)
+    now = datetime.now(timezone.utc)
+    for d in deployments.items:
+        created = d.metadata.creation_timestamp
+        if (now - created).total_seconds() >= MAX_SESSION_TIME:
+            id = int(d.metadata.labels["kasm-id"])
+            rprint(f"[bold yellow][?] Pruning kasm-{id}[/bold yellow]")
+            delete_instance(id)
 
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     cli()

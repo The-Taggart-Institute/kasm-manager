@@ -1,6 +1,10 @@
 network:
+  interface: 0.0.0.0
   ssl:
-    pem_certificate: /run/secrets/kasm_cert
-    pem_key: /run/secrets/kasm_key
+    require_ssl: false
+    # Newer KasmVNC validates pem paths even with require_ssl: false;
+    # the startup script generates this self-signed cert before starting the VNC server.
+    pem_certificate: /home/kasm-user/.vnc/self.pem
+    pem_key: /home/kasm-user/.vnc/self.pem
   udp:
     public_ip: 127.0.0.1

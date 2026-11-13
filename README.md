@@ -1,62 +1,65 @@
 # Kasm Manager
 
-Frontend for deploying Kasm workspaces using Docker Swarm.
+Frontend for deploying Kasm workspaces using Kubernetes (K3s).
 
 ## Summary
 
 This tool is designed to make the management of [Kasm Workspace Images](https://www.kasmweb.com/images) at scale feasible without the proprietary control plane, which limits free use to 5 concurrent sessions.
 
-This tool uses [Docker Swarm](https://docs.docker.com/engine/swarm/) to deploy containers as services across the Swarm. Each Workspace instance is given a unique port, and can be monitored and managed with the `kasm-manager.py` script.
+This tool uses [K3s](https://k3s.io/) (a lightweight Kubernetes distribution with a bundled Traefik ingress) to deploy workspace containers. Each instance gets its own subdomain — `https://kasm-<id>.<domain>` — routed through Traefik, which terminates TLS with a single wildcard certificate. Instances can be monitored and managed with the `kasm-manager.py` script.
 
-To make managing the Swarm a bit easier, this repository includes an Ansible playbook and inventory file for your node workers.
+All state lives in the cluster (passwords in Secrets, instance metadata in Deployment labels), so the CLI is stateless — no local state files.
+
+To make cluster setup easier, this repository includes Ansible playbooks and an inventory file for manager and worker nodes.
 
 ## Requirements
 
 To get started, you'll need:
 
-* An Ubuntu/Debian server with at least 2 CPUs/2GB RAM, and about 40GB of disk space. The more the better, and these are also the minimum specs for any worker nodes in the Docker Swarm.
-* Docker in Swarm Mode.
+* An Ubuntu/Debian server with at least 2 CPUs/2GB RAM, and about 40GB of disk space. The more the better, and these are also the minimum specs for any worker nodes in the cluster.
+* K3s installed (the Ansible playbook handles this).
 * A public IP.
-* A domain name. The `setup.sh` script will retrieve a `letsencrypt` certificate.
-
+* A domain name. The `setup.sh` script retrieves a `letsencrypt` wildcard certificate.
 
 ## Setup
 
-* On your chosen Ubuntu server, initiate Swarm Mode with `docker swarm init`. You don't have to worry about setting up the nodes; we'll do that shortly.
-
 ### Installation
 
-With your chosen domain pointing to the server's public IP, follow these shell commands:
+On the manager node, with your domain's wildcard DNS record pointing to the server's public IP:
 
 ```shell
 git clone https://github.com/The-Taggart-Institute/kasm-manager
-cd kasm-manager 
+cd kasm-manager
 ./setup.sh
 ```
 
-This will install requisite packages and get your SSL certificate set up. It will also add these certificates to Docker secrets for use with our customized Kasm Workspace images. The running workspaces will be able to use your signed cert and key, stored in the secrets `kasm_cert` and `kasm_key`, respectively.
+This installs K3s, sets up a kubeconfig for the `kasm` user, and stores your wildcard certificate as a Kubernetes Secret (`kasm-wildcard-tls`) for Traefik to use. If the secret is absent, Traefik falls back to its default self-signed certificate — everything still works, browsers just show a warning.
+
+Before using the CLI, export your domain:
+
+```shell
+export KASM_DOMAIN=lab.example.com
+```
 
 ### Ansible
 
-To make the configuration of any swarm worker nodes easier, we've included an Ansible playbook and example inventory file for you. To set up worker nodes, make sure that the correct IPs are listed in the `Ansible/inventory.yml` file. Then:
+To configure the manager and worker nodes, list the correct IPs in `Ansible/inventory.yml`, then from the repo's top level:
 
 ```shell
-# From the repo's top-level
 cd Ansible
-# Keep this info handy
-sudo docker swarm join-token worker
-ansible-playbook -i inventory.yml swarm-worker.yml
+# Install the manager; it will prompt for the manager's IP
+ansible-playbook -i inventory.yml k3s-manager.yml
+# Keep this handy for joining workers
+sudo cat /var/lib/rancher/k3s/server/node-token
+# Join the workers; prompts for manager IP and node token
+ansible-playbook -i inventory.yml k3s-worker.yml
 ```
-
-The playbook will ask for the manager IP and the join token for the swarm, which you can copy and paste from the output of the `docker` command above.
-
-It'll take a while, but afterwards your worker nodes will be set up to run Kasm Workspace containers!
 
 ### Terraform
 
-For Azure users, a set of Terraform Plans is included to get you started with a Docker Swarm cluster.
+For Azure users, a set of Terraform plans is included to provision the VMs for the cluster.
 
-In the the `Terraform` folder:
+In the `Terraform` folder:
 
 ```shell
 terraform apply
@@ -68,14 +71,19 @@ You'll be asked to add a source IP for SSH to the Manager node. This should be y
 
 ## Usage
 
-`kasm-manager.py` is the core management tool in this project. It has several subcommands.
+Install the CLI's Python dependencies with [uv](https://docs.astral.sh/uv/):
 
-* `create -i|--image IMAGE`: Creates a new Workspace instance from one of the named image types. Currently supported are `terminal` and `kali`. Creates the Docker service and shows the randomly-generated password for access. The user is `kasm_user`.
-* `list`: Lists all running instances
-* `inspect PORT_ID`: Shows details of a running instance. `PORT_ID` is the port number the instance is running on—put another way, the numbers from the output of `list`.
-* `destroy PORT_ID`: Removes a running instance identified by `PORT_ID`.
+```shell
+uv sync
+```
+
+Then run any command with `uv run python kasm-manager.py <command>`.
+
+* `create -i|--image IMAGE`: Creates a new Workspace instance from one of the named image types. Currently supported are `terminal` and `kali`. Prints the instance URL and the randomly-generated password for access. The user is `kasm_user`.
+* `list`: Lists all running instances with their age and URL.
+* `inspect ID`: Shows details of a running instance, including its password. `ID` is the instance number shown in the output of `list`.
+* `destroy ID`: Removes a running instance identified by `ID`. Fully idempotent — running it twice or against a half-created instance is safe.
 * `prune`: Removes all running instances older than the configured `MAX_SESSION_TIME` in the script. Default is 2 hours.
-  * **Note: Make sure your server's clock is set to UTC!**
 
 ## Resource Usage/Allocation
 
@@ -83,4 +91,4 @@ By default, each instance takes 2 CPU cores and 2 GB of RAM. Later versions may 
 
 ## Customization
 
-The script and Workspace images are deeply customizable. Review the `CONSTANTS` section of the script for customizable parameters. Also review the `Dockerfiles` folder to see how we customize the base Kasm images and how you might like to change them further.
+The script and Workspace images are deeply customizable. Review the `CONSTANTS` section of the script for customizable parameters. Also review the `Dockerfiles` folder to see how we customize the base Kasm images and how you might like to change them further. After changing an image, rebuild and push it to Docker Hub — instances pull `taggarttech/tti-kasm-terminal:latest` / `tti-kasm-kali:latest`.

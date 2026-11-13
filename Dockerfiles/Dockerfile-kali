@@ -1,16 +1,19 @@
-FROM kasmweb/core-kali-rolling:1.12.0-rolling
+FROM docker.io/kasmweb/core-kali-rolling:1.17.0
 USER root
 
 ENV HOME /home/kasm-default-profile
 ENV STARTUPDIR /dockerstartup
 ENV INST_SCRIPTS $STARTUPDIR/install
 
-# TTI Install packages
-RUN apt update
-RUN apt install -y zaproxy vim-gtk3 terminator fish
+# TTI Refresh the Kali archive signing key (2025 key rotation) and install packages
+RUN wget -q -O - https://archive.kali.org/archive-keyring.gpg > /usr/share/keyrings/kali-archive-keyring.gpg \
+    && apt update && apt install -y zaproxy vim-gtk3 terminator fish build-essential
 
 # TTI Copy custom yaml
 COPY ./kasmvnc.yaml /etc/kasmvnc/kasmvnc.yaml
+# Newer base images hardcode -sslOnly on the vncserver CLI, overriding require_ssl: false;
+# strip it so the config file governs TLS (we terminate TLS at the ingress instead).
+RUN sed -i 's/ -sslOnly//' /dockerstartup/vnc_startup.sh
 COPY ./tti_banner.png /usr/share/backgrounds/kali-16x9/default
 WORKDIR $HOME
 
