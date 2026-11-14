@@ -3,4 +3,7 @@ __pycache__/
 *.tfstate*
 .kasmstate/
 .env
+*.pem
+kasm-lab
+!Dockerfiles/*.pem
 .venv/

@@ -46,7 +46,7 @@ All other settings (namespace, ID range, password length, prune timeout, TLS sec
 
 ### Ansible
 
-To configure the manager and worker nodes, list the correct IPs in `Ansible/inventory.yml`, then from the repo's top level:
+To configure the manager and worker nodes, list the correct IPs in `Ansible/inventory.yml` (or `Ansible/inventory-aws.yml` for the AWS Terraform plan — key-based SSH), then from the repo's top level:
 
 ```shell
 cd Ansible
@@ -60,17 +60,17 @@ ansible-playbook -i inventory.yml k3s-worker.yml
 
 ### Terraform
 
-For Azure users, a set of Terraform plans is included to provision the VMs for the cluster.
+Plans to provision the cluster VMs are included for Azure and AWS, in `Terraform/azure` and `Terraform/aws`. Each provisions a manager node plus worker nodes on Ubuntu; k3s itself is installed afterward with the Ansible playbooks above.
 
-In the `Terraform` folder:
+From your chosen cloud's folder:
 
 ```shell
 terraform apply
 ```
 
-You'll be asked to add a source IP for SSH to the Manager node. This should be your external IP. Once deployed, you'll be able to ssh with the user `kasm` to the public IP reported by the Terraform output.
+You'll be asked for a source IP to restrict SSH to the manager. Once deployed, you'll be able to ssh with the user `kasm` to the public IP reported by the output (AWS: the plan generates its own key pair and writes the private key to `~/.ssh/kasm-lab`, configurable with the `ssh_key_path` variable).
 
-**Note: This is not free! You will incur Azure charges!**
+**Note: This is not free! You will incur cloud charges!**
 
 ## Usage
 
