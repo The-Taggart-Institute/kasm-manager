@@ -35,11 +35,14 @@ cd kasm-manager
 
 This installs K3s, sets up a kubeconfig for the `kasm` user, and stores your wildcard certificate as a Kubernetes Secret (`kasm-wildcard-tls`) for Traefik to use. If the secret is absent, Traefik falls back to its default self-signed certificate — everything still works, browsers just show a warning.
 
-Before using the CLI, export your domain:
+Before using the CLI, configure your domain (required — the CLI exits without it):
 
 ```shell
-export KASM_DOMAIN=lab.example.com
+cp .env.example .env
+# edit .env and set KASM_DOMAIN
 ```
+
+All other settings (namespace, ID range, password length, prune timeout, TLS secret, and the set of workspace images) can be customized in the same `.env` file; every value besides `KASM_DOMAIN` has a working default. See `.env.example` for the full list.
 
 ### Ansible
 
@@ -91,4 +94,4 @@ By default, each instance takes 2 CPU cores and 2 GB of RAM. Later versions may 
 
 ## Customization
 
-The script and Workspace images are deeply customizable. Review the `CONSTANTS` section of the script for customizable parameters. Also review the `Dockerfiles` folder to see how we customize the base Kasm images and how you might like to change them further. After changing an image, rebuild and push it to Docker Hub — instances pull `taggarttech/tti-kasm-terminal:latest` / `tti-kasm-kali:latest`.
+The script and Workspace images are deeply customizable. All runtime settings live in a `.env` file (or the environment) — see `.env.example` for the full list. Notably, you can define additional workspace image types with `KASM_IMAGE_<NAME>=<image>` entries; setting any replaces the built-in `terminal`/`kali` defaults. Also review the `Dockerfiles` folder to see how we customize the base Kasm images and how you might like to change them further. After changing an image, rebuild and push it to Docker Hub — instances pull `taggarttech/tti-kasm-terminal:latest` / `tti-kasm-kali:latest`.

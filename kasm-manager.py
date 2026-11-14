@@ -7,29 +7,43 @@ import json
 import os
 
 import click
+from dotenv import load_dotenv
 import kubernetes
 from kubernetes import client as k8s
 from kubernetes.client.exceptions import ApiException
 from rich import print as rprint
 from rich.table import Table
 
-# Constants
-# =========
-NAMESPACE = "kasm"
-IMAGES = {
-    "terminal": "taggarttech/tti-kasm-terminal:latest",
-    "kali": "taggarttech/tti-kasm-kali:latest"
-}
-ID_START = 6901   # logical instance IDs, no longer real ports
-ID_END = 7000
-IDS = list(range(ID_START, ID_END))
-PASSWORD_LEN = 20
-MAX_SESSION_TIME = 7200
-TLS_SECRET = "kasm-wildcard-tls"
-LABEL_SELECTOR = "app=kasm"
+# Configuration
+# ==============
+# Values are read from the environment, falling back to a `.env` file in the
+# working directory. Only KASM_DOMAIN is required; everything else has a
+# working default. See .env.example for documentation.
+load_dotenv()
+
 DOMAIN = os.environ.get("KASM_DOMAIN", "")
-# END CONSTANTS
-# =============
+NAMESPACE = os.environ.get("KASM_NAMESPACE", "kasm")
+ID_START = int(os.environ.get("KASM_ID_START", 6901))   # logical instance IDs, no longer real ports
+ID_END = int(os.environ.get("KASM_ID_END", 7000))
+IDS = list(range(ID_START, ID_END))
+PASSWORD_LEN = int(os.environ.get("KASM_PASSWORD_LEN", 20))
+MAX_SESSION_TIME = int(os.environ.get("KASM_MAX_SESSION_TIME", 7200))
+TLS_SECRET = os.environ.get("KASM_TLS_SECRET", "kasm-wildcard-tls")
+LABEL_SELECTOR = os.environ.get("KASM_LABEL_SELECTOR", "app=kasm")
+IMAGES = {
+    key.removeprefix("KASM_IMAGE_").lower(): value
+    for key, value in os.environ.items()
+    if key.startswith("KASM_IMAGE_")
+} or {"terminal": "taggarttech/tti-kasm-terminal:latest",
+      "kali": "taggarttech/tti-kasm-kali:latest"}
+# END CONFIGURATION
+# =================
+
+if not DOMAIN:
+    rprint("[bold red][!] KASM_DOMAIN is not set. Add it to a .env file or export it, e.g. KASM_DOMAIN=lab.example.com[/bold red]")
+    raise SystemExit(1)
+# END CONFIGURATION
+# =================
 
 """
 `kasm-manager create`
@@ -134,9 +148,6 @@ def create(image):
     """
     Launches a new Kasm Instance.
     """
-    if not DOMAIN:
-        rprint("[bold red][!] KASM_DOMAIN is not set. Export it first, e.g. export KASM_DOMAIN=lab.example.com[/bold red]")
-        return
 
     # Retrieve image name
     try:
