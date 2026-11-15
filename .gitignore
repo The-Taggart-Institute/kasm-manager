@@ -7,3 +7,6 @@ __pycache__/
 kasm-lab
 !Dockerfiles/*.pem
 .venv/
+inventory-aws.yml
+inventory-azure.yml
+inventory.yml
