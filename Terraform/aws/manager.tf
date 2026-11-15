@@ -35,7 +35,11 @@ resource "aws_instance" "kasm-manager" {
   }
 }
 
-output "manager_ip" {
+output "manager_public_ip" {
   value       = aws_instance.kasm-manager.public_ip
-  description = "Manager IP"
+  description = "Manager Public IP"
+}
+output "manager_private_ip" {
+  value       = aws_instance.kasm-manager.private_ip
+  description = "Manager private IP (use with workers)"
 }

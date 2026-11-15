@@ -50,10 +50,9 @@ To configure the manager and worker nodes, list the correct IPs in `Ansible/inve
 
 ```shell
 cd Ansible
-# Install the manager; it will prompt for the manager's IP
+# Install the manager; it will prompt for the manager's IP and print
+# the node token the worker playbook asks for
 ansible-playbook -i inventory.yml k3s-manager.yml
-# Keep this handy for joining workers
-sudo cat /var/lib/rancher/k3s/server/node-token
 # Join the workers; prompts for manager IP and node token
 ansible-playbook -i inventory.yml k3s-worker.yml
 ```

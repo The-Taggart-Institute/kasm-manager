@@ -66,3 +66,14 @@
         chdir: "/home/{{ ansible_user }}/kasm-manager"
       become: false
       become_user: kasm
+
+    - name: Read the k3s node token
+      ansible.builtin.command: cat /var/lib/rancher/k3s/server/node-token
+      register: k3s_token
+      changed_when: false
+
+    - name: Show the worker join token
+      ansible.builtin.debug:
+        msg:
+          - "K3s node token for the worker playbook (k3s-worker.yml):"
+          - "{{ k3s_token.stdout }}"

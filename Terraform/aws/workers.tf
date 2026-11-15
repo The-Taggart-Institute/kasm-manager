@@ -24,3 +24,6 @@ resource "aws_instance" "kasm-worker" {
 output "worker_private_ips" {
   value = aws_instance.kasm-worker[*].private_ip
 }
+output "worker_public_ips" {
+  value = aws_instance.kasm-worker[*].public_ip
+}
