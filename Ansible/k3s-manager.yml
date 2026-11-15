@@ -61,8 +61,8 @@
         creates: /home/kasm/.local/bin/uv
 
     - name: Install CLI dependencies with uv
-      ansible.builtin.command: /home/kasm/.local/bin/uv sync
-      args:
-        chdir: "{{ playbook_dir }}/.."
+      ansible.builtin.shell:
+        cmd: /home/kasm/.local/bin/uv sync
+        chdir: "/home/{{ ansible_user }}/kasm-manager"
       become: false
       become_user: kasm
