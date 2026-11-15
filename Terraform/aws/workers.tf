@@ -11,6 +11,11 @@ resource "aws_instance" "kasm-worker" {
     volume_type = "gp3"
   }
 
+  user_data = templatefile("${path.module}/user-data.yml", {
+    admin_username = var.admin_username
+    public_key     = tls_private_key.kasm.public_key_openssh
+  })
+
   tags = {
     Name = "kasm-worker-${count.index}"
   }

@@ -48,8 +48,7 @@ variable "ssh_key_path" {
 }
 
 resource "tls_private_key" "kasm" {
-  algorithm = "RSA"
-  rsa_bits  = 4096
+  algorithm = "ED25519"
 }
 
 # Newest Ubuntu 26.04 amd64 server AMI (canonical owner 099720109477)

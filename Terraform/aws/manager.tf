@@ -10,6 +10,11 @@ resource "aws_instance" "kasm-manager" {
     volume_type = "gp3"
   }
 
+  user_data = templatefile("${path.module}/user-data.yml", {
+    admin_username = var.admin_username
+    public_key     = tls_private_key.kasm.public_key_openssh
+  })
+
   tags = {
     Name = "kasm-manager"
   }
@@ -20,6 +25,8 @@ resource "aws_instance" "kasm-manager" {
       user        = var.admin_username
       private_key = tls_private_key.kasm.private_key_pem
       host        = self.public_ip
+      # cloud-init needs ~a minute after boot to create the user
+      timeout = "5m"
     }
 
     inline = [
