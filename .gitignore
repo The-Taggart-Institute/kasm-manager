@@ -2,3 +2,8 @@ __pycache__/
 .terraform*
 *.tfstate*
 .kasmstate/
+.env
+*.pem
+kasm-lab
+!Dockerfiles/*.pem
+.venv/

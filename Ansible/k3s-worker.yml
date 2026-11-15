@@ -1,0 +1,23 @@
+---
+- name: Join K3s Workers
+  vars_prompt:
+    - name: manager_ip
+      prompt: "Manager IP"
+      private: false
+    - name: k3s_token
+      prompt: "K3s Token"
+      private: false
+  hosts: workers
+  become: true
+  become_user: root
+  roles:
+    - k3s
+  tasks:
+    - name: Join K3s cluster
+      ansible.builtin.shell: curl -sfL https://get.k3s.io | sh -
+      args:
+        creates: /usr/local/bin/k3s
+      environment:
+        K3S_URL: "https://{{ manager_ip }}:6443"
+        K3S_TOKEN: "{{ k3s_token }}"
+      # K3S_URL/K3S_TOKEN env make the script install an agent, not a server

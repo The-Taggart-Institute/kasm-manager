@@ -1,0 +1,68 @@
+---
+- name: Setup K3s Manager
+  vars_prompt:
+    - name: manager_ip
+      prompt: "Manager IP"
+      private: false
+  hosts: managers
+  become: true
+  become_user: root
+  roles:
+    - k3s
+  tasks:
+    - name: Install K3s server
+      ansible.builtin.shell: curl -sfL https://get.k3s.io | sh -
+      args:
+        creates: /usr/local/bin/k3s
+      # No taints: the manager also runs workloads (lab scale, same as the old Swarm manager)
+
+    - name: Wait for node ready
+      ansible.builtin.command: k3s kubectl wait --for=condition=ready node --all --timeout=300s
+      changed_when: false
+
+    - name: Check for kasm namespace
+      ansible.builtin.command: k3s kubectl get namespace kasm
+      register: kasm_ns
+      failed_when: false
+      changed_when: false
+
+    - name: Create kasm namespace
+      ansible.builtin.command: k3s kubectl create namespace kasm
+      when: kasm_ns.rc != 0
+
+    - name: Create kubeconfig directory for kasm user
+      ansible.builtin.file:
+        path: /home/kasm/.kube
+        state: directory
+        owner: kasm
+        group: kasm
+        mode: "0755"
+
+    - name: Install kubeconfig for kasm user
+      ansible.builtin.copy:
+        src: /etc/rancher/k3s/k3s.yaml
+        dest: /home/kasm/.kube/config
+        owner: kasm
+        group: kasm
+        mode: "0600"
+        remote_src: true
+
+    - name: Point kubeconfig at the manager's external IP
+      ansible.builtin.replace:
+        path: /home/kasm/.kube/config
+        regexp: 'https://127\.0\.0\.1:6443'
+        replace: "https://{{ manager_ip }}:6443"
+
+    - name: Install uv
+      ansible.builtin.shell: curl -LsSf https://astral.sh/uv/install.sh | sh
+      become: false
+      become_user: kasm
+      args:
+        creates: /home/kasm/.local/bin/uv
+
+    - name: Install CLI dependencies with uv
+      ansible.builtin.shell:
+        cmd: /home/kasm/.local/bin/uv sync
+        chdir: "/home/{{ ansible_user }}/kasm-manager"
+      become: false
+      become_user: kasm
