@@ -15,6 +15,8 @@ if [ ! -f ~/.kube/config ]; then
 fi
 
 sudo k3s kubectl create namespace kasm
+# This secret NAME is referenced by KASM_TLS_SECRET in .env (default:
+# kasm-wildcard-tls). kasm-manager wires it into each instance's ingress.
 sudo k3s kubectl -n kasm create secret tls kasm-wildcard-tls \
   --cert=/etc/letsencrypt/live/$DOMAIN/fullchain.pem \
   --key=/etc/letsencrypt/live/$DOMAIN/privkey.pem
