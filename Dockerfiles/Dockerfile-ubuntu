@@ -1,0 +1,28 @@
+FROM docker.io/kasmweb/core-ubuntu-resolute:develop-rolling
+USER root
+
+ENV HOME /home/kasm-default-profile
+ENV STARTUPDIR /dockerstartup
+ENV INST_SCRIPTS $STARTUPDIR/install
+
+# TTI Copy custom yaml
+COPY ./kasmvnc.yaml /etc/kasmvnc/kasmvnc.yaml
+# Newer base images hardcode -sslOnly on the vncserver CLI, overriding require_ssl: false;
+# strip it so the config file governs TLS (we terminate TLS at the ingress instead).
+RUN sed -i 's/ -sslOnly//' /dockerstartup/vnc_startup.sh
+COPY ./tti_banner.png /usr/share/backgrounds/kali-16x9/default
+WORKDIR $HOME
+
+######### Customize Container Here ###########
+# TTI final touches
+
+######### End Customizations ###########
+
+RUN chown 1000:0 $HOME
+RUN $STARTUPDIR/set_user_permission.sh $HOME
+
+ENV HOME /home/kasm-user
+WORKDIR $HOME
+RUN mkdir -p $HOME && chown -R 1000:0 $HOME
+
+USER 1000
