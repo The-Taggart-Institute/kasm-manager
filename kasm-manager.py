@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 import base64
 import json
 import os
+import time
 
 import click
 from dotenv import load_dotenv
@@ -12,7 +13,10 @@ import kubernetes
 from kubernetes import client as k8s
 from kubernetes.client.exceptions import ApiException
 from rich import print as rprint
+from rich.live import Live
+from rich.spinner import Spinner
 from rich.table import Table
+from rich.text import Text
 
 # Configuration
 # ==============
@@ -135,6 +139,95 @@ def delete_instance(id: int):
         except ApiException as e:
             if e.status != 404:
                 raise
+
+
+def wait_for_instance(id: int, timeout: int = 600) -> bool:
+    """
+    Polls the instance pod until it is Ready, fails, or the timeout elapses.
+    Returns True when Ready. Prints the failure reason otherwise.
+    """
+    core, apps, _ = kube()
+    name = f"kasm-{id}"
+    deadline = time.monotonic() + timeout
+    phase = Text("waiting for the API server")
+
+    with Live(Spinner("dots", text=phase), refresh_per_second=4) as live:
+        while time.monotonic() < deadline:
+            # Deployment-level status
+            try:
+                deployment = apps.read_namespaced_deployment(name, NAMESPACE)
+            except ApiException:
+                time.sleep(1)
+                continue
+            conditions = {c.type: c for c in deployment.status.conditions or []}
+            replicas = deployment.status.ready_replicas or 0
+
+            if replicas >= 1:
+                return True
+
+            # Pod-level status for phase reporting
+            pods = core.list_namespaced_pod(
+                NAMESPACE, label_selector=f"kasm-id={id}"
+            )
+            detail = ""
+            for pod in pods.items:
+                if pod.status.phase == "Pending":
+                    for c in pod.status.container_statuses or []:
+                        if c.state.waiting:
+                            detail = c.state.waiting.reason or ""
+                elif pod.status.phase in ("Failed", "Unknown"):
+                    live.update(Text(""))
+                    rprint(f"[bold red][!] Pod {pod.metadata.name} entered {pod.status.phase}[/bold red]")
+                    _print_pod_failure(pod)
+                    return False
+                for c in pod.status.container_statuses or []:
+                    if c.state.waiting and "CrashLoopBackOff" in (c.state.waiting.reason or ""):
+                        live.update(Text(""))
+                        rprint(f"[bold red][!] Container is crash-looping (CrashLoopBackOff)[/bold red]")
+                        _print_pod_failure(pod)
+                        return False
+                    if c.state.waiting:
+                        detail = c.state.waiting.reason or ""
+
+            phase = Text(detail or deployment_progress(conditions))
+            live.update(Spinner("dots", text=phase))
+            time.sleep(2)
+
+    rprint(f"[bold red][!] Timed out waiting for {name} to become ready[/bold red]")
+    return False
+
+
+def deployment_progress(conditions: dict) -> str:
+    """Human-readable summary of where the deployment is in its rollout."""
+    if "Progressing" in conditions:
+        reason = conditions["Progressing"].reason
+        if reason == "ReplicaSetUpdated":
+            return "starting the workspace container"
+        if reason == "MinimumReplicasUnavailable" or "Available" not in conditions:
+            return "scheduling the pod"
+    if "Available" in conditions and not (conditions["Available"].status or False):
+        return "waiting for the container to start"
+    return "rolling out"
+
+
+def _print_pod_failure(pod):
+    """Prints the last events and container termination reasons for a failed pod."""
+    core, _, _ = kube()
+    for status in pod.status.container_statuses or []:
+        term = status.state.terminated
+        if term:
+            rprint(f"[bold red][!] Container exited: {term.reason} (exit code {term.exit_code})[/bold red]")
+            if term.message:
+                rprint(f"[bold red]    {term.message}[/bold red]")
+    try:
+        events = core.list_namespaced_event(
+            NAMESPACE,
+            field_selector=f"involvedObject.name={pod.metadata.name}",
+        )
+        for ev in events.items[-5:]:
+            rprint(f"[yellow]    {ev.reason}: {ev.message}[/yellow]")
+    except ApiException:
+        pass
 
 
 @click.group()
@@ -262,10 +355,15 @@ def create(image):
         ),
     )
 
-    rprint(f"[bold green][+] Instance {new_name} created[/bold green]")
-    rprint(f"[bold green][+] URL: https://kasm-{new_id}.{DOMAIN}[/bold green]")
-    rprint(f"[bold green][+] Password: {new_pass}[/bold green]")
-    rprint("[bold green][+] User: kasm_user[/bold green]")
+    if wait_for_instance(new_id):
+        rprint(f"[bold green][+] Instance {new_name} created[/bold green]")
+        rprint(f"[bold green][+] URL: https://kasm-{new_id}.{DOMAIN}[/bold green]")
+        rprint(f"[bold green][+] Password: {new_pass}[/bold green]")
+        rprint("[bold green][+] User: kasm_user[/bold green]")
+    else:
+        rprint(f"[bold red][!] Creation failed; cleaning up {new_name}[/bold red]")
+        delete_instance(new_id)
+        raise SystemExit(1)
 
 
 @cli.command(help="Inspect a running Kasm Workspace at ID")
